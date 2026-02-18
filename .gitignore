@@ -1,0 +1,81 @@
+# ============================================================
+# TaxiPulse — .gitignore
+# ============================================================
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+.Python
+env/
+venv/
+.venv/
+pip-wheel-metadata/
+
+# --- Environment Variables (NEVER commit secrets) ---
+.env
+.env.local
+.env.production
+*.key
+*.pem
+*credentials*.json
+*service_account*.json
+
+# --- Airflow ---
+airflow/logs/
+airflow/airflow.db
+airflow/airflow-webserver.pid
+airflow/*.cfg
+airflow/*.pid
+
+# --- Data files (too large for Git) ---
+data/
+*.parquet
+*.csv
+*.xlsx
+!config/*.csv
+
+# --- Terraform ---
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/*.tfplan
+
+# --- Docker ---
+docker/volumes/
+
+# --- Great Expectations ---
+quality/uncommitted/
+quality/great_expectations/uncommitted/
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- Jupyter Notebooks ---
+.ipynb_checkpoints/
+*.ipynb
+
+# --- Logs ---
+*.log
+logs/
+
+# --- OS ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
