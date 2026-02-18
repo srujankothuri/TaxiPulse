@@ -177,6 +177,6 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 ## 👤 Author
 
-**Venkata Srujan**
-- GitHub: [@your-username](https://github.com/your-username)
-- LinkedIn: [your-linkedin](https://linkedin.com/in/your-linkedin)
+**Srujan Kothuri**
+- GitHub: [@srujankothuri](https://github.com/srujankothuri)
+- LinkedIn: [srujan kothuri](https://www.linkedin.com/in/srujan-kothuri-2044ba250/)
