@@ -79,6 +79,36 @@ def task_load_bronze_to_postgres(**context):
     return len(results["loaded"])
 
 
+def task_validate_data_quality(**context):
+    """Task 4: Run data quality validation on Bronze data."""
+    from quality.validate_data import validate_and_split_bronze
+    from loguru import logger
+
+    logger.info("🔍 Running data quality validation...")
+    result = validate_and_split_bronze()
+
+    if result is None:
+        raise Exception("No data to validate")
+
+    summary = result["summary"]
+    context["ti"].xcom_push(key="quality_summary", value=summary)
+
+    logger.info(
+        f"✅ Quality check complete: "
+        f"{summary['clean_rows']:,} clean, "
+        f"{summary['quarantined_rows']:,} quarantined, "
+        f"{summary['overall_pass_rate']}% pass rate"
+    )
+
+    # Fail the task if pass rate is below 80%
+    if summary["overall_pass_rate"] < 80:
+        raise Exception(
+            f"Data quality below threshold: {summary['overall_pass_rate']}%"
+        )
+
+    return summary["overall_pass_rate"]
+
+
 # ============================================================
 # DAG Definition
 # ============================================================
@@ -123,16 +153,22 @@ with DAG(
         provide_context=True,
     )
 
+    # Task 4: Data Quality Validation
+    validate_quality = PythonOperator(
+        task_id="validate_data_quality",
+        python_callable=task_validate_data_quality,
+        provide_context=True,
+    )
+
     # ============================================================
     # Pipeline Flow
     # ============================================================
-    # Download → Upload to MinIO → Load into PostgreSQL
+    # Download → Upload to MinIO → Load into PostgreSQL → Validate Quality
     #
     # Future steps will add:
-    #   → Data Quality Validation
     #   → Silver Transformation
     #   → Gold Star Schema
     #   → Anomaly Detection
     #   → Alerting
 
-    download >> upload >> load_bronze
+    download >> upload >> load_bronze >> validate_quality
