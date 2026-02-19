@@ -3,12 +3,11 @@
 An end-to-end data engineering platform that ingests millions of NYC taxi trip records through both batch and real-time streaming pipelines, validates data quality at every stage, models data in a star schema warehouse, detects pricing anomalies automatically, and visualizes insights through interactive dashboards.
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python)
-![GCP](https://img.shields.io/badge/Cloud-GCP-4285F4?logo=google-cloud)
+![Docker](https://img.shields.io/badge/Container-Docker-2496ED?logo=docker)
 ![Airflow](https://img.shields.io/badge/Orchestration-Airflow-017CEE?logo=apache-airflow)
 ![Kafka](https://img.shields.io/badge/Streaming-Kafka-231F20?logo=apache-kafka)
-![BigQuery](https://img.shields.io/badge/Warehouse-BigQuery-669DF6?logo=google-cloud)
-![Docker](https://img.shields.io/badge/Container-Docker-2496ED?logo=docker)
-![Terraform](https://img.shields.io/badge/IaC-Terraform-844FBA?logo=terraform)
+![PostgreSQL](https://img.shields.io/badge/Warehouse-PostgreSQL-4169E1?logo=postgresql)
+![MinIO](https://img.shields.io/badge/Storage-MinIO-C72E49?logo=minio)
 
 ---
 
@@ -26,16 +25,16 @@ An end-to-end data engineering platform that ingests millions of NYC taxi trip r
 
 ```
 NYC TLC Data ──┬── Batch Path (Airflow) ──┐
-               │                          ├── GCS (Bronze) ── Great Expectations
+               │                          ├── MinIO (Bronze) ── Great Expectations
                └── Stream Path (Kafka) ───┘         │
                                                      ▼
-                                            BigQuery (Silver → Gold)
+                                            PostgreSQL (Silver → Gold)
                                                      │
                                           ┌──────────┼──────────┐
                                           ▼          ▼          ▼
-                                     Star Schema  Anomaly    Looker +
-                                     Warehouse    Detection  Streamlit
-                                                  + Alerts   Dashboard
+                                     Star Schema  Anomaly    Streamlit
+                                     Warehouse    Detection  Dashboard
+                                                  + Alerts
 ```
 
 <!-- TODO: Replace with full architecture diagram image -->
@@ -62,15 +61,13 @@ NYC TLC Data ──┬── Batch Path (Airflow) ──┐
 |-----------|------------|
 | **Orchestration** | Apache Airflow |
 | **Streaming** | Apache Kafka |
-| **Cloud Storage** | Google Cloud Storage (GCS) |
-| **Data Warehouse** | Google BigQuery |
+| **Object Storage** | MinIO (S3-compatible) |
+| **Data Warehouse** | PostgreSQL |
 | **Data Quality** | Great Expectations |
-| **Transformations** | dbt / Python |
 | **Anomaly Detection** | Python (scipy, numpy) |
 | **Alerting** | Slack Webhooks |
-| **IaC** | Terraform |
 | **Containerization** | Docker + Docker Compose |
-| **Visualization** | Looker Studio + Streamlit |
+| **Visualization** | Streamlit |
 | **Language** | Python 3.11+ |
 
 ---
@@ -110,8 +107,6 @@ TaxiPulse/
 ### Prerequisites
 - Python 3.11+
 - Docker & Docker Compose
-- GCP Account with billing enabled
-- Terraform installed
 
 ### Setup
 
@@ -120,24 +115,16 @@ TaxiPulse/
 git clone https://github.com/YOUR_USERNAME/TaxiPulse.git
 cd TaxiPulse
 
-# 2. Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Configure environment
+# 2. Configure environment
 cp .env.example .env
-# Edit .env with your GCP credentials and settings
 
-# 5. Deploy infrastructure
-cd terraform
-terraform init
-terraform apply
-
-# 6. Run the pipeline
+# 3. Start all services
 docker-compose up -d
+
+# 4. Access the services
+#    Airflow UI:      http://localhost:8080 (admin/admin)
+#    MinIO Console:   http://localhost:9001 (taxipulse/taxipulse123)
+#    PostgreSQL:      localhost:5432 (taxipulse/taxipulse123)
 ```
 
 ---

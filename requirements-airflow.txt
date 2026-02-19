@@ -1,5 +1,6 @@
 # ============================================================
-# TaxiPulse — Python Dependencies (Local Docker Stack)
+# TaxiPulse — Airflow Container Dependencies
+# (Subset of main requirements.txt for the Airflow container)
 # ============================================================
 
 # --- Core ---
@@ -9,15 +10,15 @@ pandas==2.1.4
 pyarrow==14.0.2
 numpy==1.26.4
 
-# --- MinIO (S3-compatible object storage) ---
+# --- MinIO (S3-compatible) ---
 minio==7.2.12
 boto3==1.35.81
 
 # --- PostgreSQL ---
 psycopg2-binary==2.9.10
-sqlalchemy==2.0.36
+# Note: SQLAlchemy is managed by Airflow — do NOT pin it here
 
-# --- Apache Kafka ---
+# --- Kafka ---
 kafka-python-ng==2.2.3
 
 # --- Data Quality ---
@@ -28,13 +29,6 @@ scipy==1.12.0
 
 # --- Alerting ---
 slack-sdk==3.33.5
-
-# --- Streamlit (Monitoring App) ---
-streamlit==1.40.2
-plotly==5.24.1
-
-# --- Testing ---
-pytest==8.3.4
 
 # --- Utilities ---
 loguru==0.7.3

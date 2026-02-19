@@ -13,26 +13,38 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT_DIR / ".env")
 
 
-class GCPConfig:
-    """Google Cloud Platform configuration."""
-    PROJECT_ID = os.getenv("GCP_PROJECT_ID")
-    REGION = os.getenv("GCP_REGION", "us-central1")
-    CREDENTIALS_PATH = os.getenv("GCP_CREDENTIALS_PATH")
+class MinIOConfig:
+    """MinIO (S3-compatible) object storage configuration."""
+    ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:9000")
+    ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "taxipulse")
+    SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "taxipulse123")
+    BUCKET_NAME = os.getenv("MINIO_BUCKET_NAME", "taxipulse-data-lake")
+    BRONZE_PREFIX = os.getenv("MINIO_BRONZE_PREFIX", "bronze/")
+    SILVER_PREFIX = os.getenv("MINIO_SILVER_PREFIX", "silver/")
+    GOLD_PREFIX = os.getenv("MINIO_GOLD_PREFIX", "gold/")
+    USE_SSL = os.getenv("MINIO_USE_SSL", "false").lower() == "true"
 
 
-class GCSConfig:
-    """Google Cloud Storage configuration."""
-    BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "taxipulse-data-lake")
-    BRONZE_PREFIX = os.getenv("GCS_BRONZE_PREFIX", "bronze/")
-    SILVER_PREFIX = os.getenv("GCS_SILVER_PREFIX", "silver/")
-    GOLD_PREFIX = os.getenv("GCS_GOLD_PREFIX", "gold/")
+class PostgresConfig:
+    """PostgreSQL data warehouse configuration."""
+    HOST = os.getenv("POSTGRES_HOST", "localhost")
+    PORT = int(os.getenv("POSTGRES_PORT", "5432"))
+    DATABASE = os.getenv("POSTGRES_DB", "taxipulse")
+    USER = os.getenv("POSTGRES_USER", "taxipulse")
+    PASSWORD = os.getenv("POSTGRES_PASSWORD", "taxipulse123")
 
+    # Schema names (Medallion layers)
+    SCHEMA_BRONZE = os.getenv("PG_SCHEMA_BRONZE", "bronze")
+    SCHEMA_SILVER = os.getenv("PG_SCHEMA_SILVER", "silver")
+    SCHEMA_GOLD = os.getenv("PG_SCHEMA_GOLD", "gold")
 
-class BigQueryConfig:
-    """BigQuery configuration."""
-    DATASET_BRONZE = os.getenv("BQ_DATASET_BRONZE", "taxipulse_bronze")
-    DATASET_SILVER = os.getenv("BQ_DATASET_SILVER", "taxipulse_silver")
-    DATASET_GOLD = os.getenv("BQ_DATASET_GOLD", "taxipulse_gold")
+    @classmethod
+    def get_connection_string(cls) -> str:
+        """SQLAlchemy connection string."""
+        return (
+            f"postgresql://{cls.USER}:{cls.PASSWORD}"
+            f"@{cls.HOST}:{cls.PORT}/{cls.DATABASE}"
+        )
 
 
 class TLCConfig:
@@ -78,14 +90,20 @@ class StreamlitConfig:
     PORT = int(os.getenv("STREAMLIT_PORT", "8501"))
 
 
+class AirflowConfig:
+    """Airflow configuration."""
+    HOME = os.getenv("AIRFLOW_HOME", "/opt/airflow")
+    EXECUTOR = os.getenv("AIRFLOW__CORE__EXECUTOR", "LocalExecutor")
+
+
 # Convenience: validate critical config on import
 def validate_config():
     """Check that essential configuration values are set."""
     missing = []
-    if not GCPConfig.PROJECT_ID:
-        missing.append("GCP_PROJECT_ID")
-    if not GCPConfig.CREDENTIALS_PATH:
-        missing.append("GCP_CREDENTIALS_PATH")
+    if not MinIOConfig.ENDPOINT:
+        missing.append("MINIO_ENDPOINT")
+    if not PostgresConfig.HOST:
+        missing.append("POSTGRES_HOST")
     if missing:
         print(f"⚠️  Missing required config: {', '.join(missing)}")
         print("   Copy .env.example to .env and fill in your values.")
