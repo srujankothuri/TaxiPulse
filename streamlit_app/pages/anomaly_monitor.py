@@ -11,7 +11,7 @@ from pathlib import Path
 # Ensure db.py is importable regardless of how page is launched
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from streamlit_app.db import run_query
+from db import run_query
 
 
 def render():
@@ -107,31 +107,37 @@ def render():
     st.markdown("### 📍 Most Anomalous Zones")
 
     top_zones = run_query(f"""
-        SELECT zone_id, COUNT(*) as anomaly_count,
-               AVG(z_score) as avg_z_score,
-               MAX(z_score) as max_z_score
-        FROM gold.anomaly_log
-        WHERE zone_id IS NOT NULL
-          AND severity IN ({sev_str})
-          AND anomaly_type IN ({type_str})
-        GROUP BY zone_id
+        SELECT a.zone_id,
+               COALESCE(d.zone_name, 'Zone ' || a.zone_id::text) as zone_name,
+               COALESCE(d.borough, 'Unknown') as borough,
+               COUNT(*) as anomaly_count,
+               AVG(a.z_score) as avg_z_score,
+               MAX(a.z_score) as max_z_score
+        FROM gold.anomaly_log a
+        LEFT JOIN gold.dim_pickup_location d
+            ON a.zone_id = d.pickup_location_id
+        WHERE a.zone_id IS NOT NULL
+          AND a.severity IN ({sev_str})
+          AND a.anomaly_type IN ({type_str})
+        GROUP BY a.zone_id, d.zone_name, d.borough
         ORDER BY anomaly_count DESC
         LIMIT 15
     """)
 
     if not top_zones.empty:
         fig = px.bar(
-            top_zones, x="zone_id", y="anomaly_count",
+            top_zones, x="zone_name", y="anomaly_count",
             color="avg_z_score",
+            hover_data=["borough", "max_z_score"],
             title="Top 15 Zones by Anomaly Count",
             labels={
-                "zone_id": "Zone ID",
+                "zone_name": "Zone",
                 "anomaly_count": "Anomaly Count",
                 "avg_z_score": "Avg Z-Score",
             },
             color_continuous_scale="Reds",
         )
-        fig.update_layout(height=400)
+        fig.update_layout(height=400, xaxis_tickangle=-45)
         st.plotly_chart(fig, use_container_width=True)
 
     # ---- Z-Score Distribution ----

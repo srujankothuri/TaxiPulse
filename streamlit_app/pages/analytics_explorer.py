@@ -12,7 +12,7 @@ from pathlib import Path
 # Ensure db.py is importable regardless of how page is launched
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from streamlit_app.db import run_query
+from db import run_query
 
 
 def render():
@@ -93,12 +93,16 @@ def render():
     st.markdown("### 📍 Top Pickup Zones")
 
     top_zones = run_query("""
-        SELECT pickup_location_id as zone_id,
-               SUM(total_trips) as trips,
-               SUM(total_revenue) as revenue,
-               AVG(avg_fare) as avg_fare
-        FROM gold.agg_hourly_zone_revenue
-        GROUP BY pickup_location_id
+        SELECT h.pickup_location_id as zone_id,
+               COALESCE(d.zone_name, 'Zone ' || h.pickup_location_id::text) as zone_name,
+               COALESCE(d.borough, 'Unknown') as borough,
+               SUM(h.total_trips) as trips,
+               SUM(h.total_revenue) as revenue,
+               AVG(h.avg_fare) as avg_fare
+        FROM gold.agg_hourly_zone_revenue h
+        LEFT JOIN gold.dim_pickup_location d
+            ON h.pickup_location_id = d.pickup_location_id
+        GROUP BY h.pickup_location_id, d.zone_name, d.borough
         ORDER BY trips DESC
         LIMIT 20
     """)
@@ -107,26 +111,26 @@ def render():
 
     with col1:
         fig = px.bar(
-            top_zones, x="zone_id", y="trips",
+            top_zones, x="zone_name", y="trips",
             title="Top 20 Zones by Trip Volume",
-            labels={"zone_id": "Zone ID", "trips": "Total Trips"},
+            labels={"zone_name": "Zone", "trips": "Total Trips"},
             color="revenue",
             color_continuous_scale="Viridis",
         )
-        fig.update_layout(height=400)
+        fig.update_layout(height=400, xaxis_tickangle=-45)
         st.plotly_chart(fig, use_container_width=True)
 
     with col2:
         fig = px.scatter(
             top_zones, x="trips", y="revenue",
-            size="avg_fare", color="avg_fare",
-            title="Zone Revenue vs Volume",
+            size="avg_fare", color="borough",
+            hover_name="zone_name",
+            title="Zone Revenue vs Volume (by Borough)",
             labels={
                 "trips": "Total Trips",
                 "revenue": "Total Revenue ($)",
                 "avg_fare": "Avg Fare ($)",
             },
-            color_continuous_scale="RdYlGn",
         )
         fig.update_layout(height=400)
         st.plotly_chart(fig, use_container_width=True)
