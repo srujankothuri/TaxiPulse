@@ -143,6 +143,24 @@ def task_build_gold_layer(**context):
     return results
 
 
+def task_run_anomaly_detection(**context):
+    """Task 7: Detect anomalies and send alerts."""
+    from anomaly_detection.detector import run_anomaly_detection
+    from anomaly_detection.alerting import send_anomaly_alerts_from_db
+    from loguru import logger
+
+    logger.info("🔍 Running anomaly detection...")
+    results = run_anomaly_detection()
+
+    if results["total_anomalies"] > 0:
+        logger.info("📬 Sending alerts...")
+        send_anomaly_alerts_from_db()
+
+    context["ti"].xcom_push(key="anomaly_results", value=results)
+    logger.info(f"✅ Anomaly detection complete: {results['total_anomalies']} found")
+    return results
+
+
 # ============================================================
 # DAG Definition
 # ============================================================
@@ -208,13 +226,16 @@ with DAG(
         provide_context=True,
     )
 
-    # ============================================================
-    # Pipeline Flow
-    # ============================================================
-    # Download → Upload → Load Bronze → Validate → Silver → Gold
-    #
-    # Future steps will add:
-    #   → Anomaly Detection
-    #   → Alerting
+    # Task 7: Anomaly Detection + Alerting
+    detect_anomalies = PythonOperator(
+        task_id="run_anomaly_detection",
+        python_callable=task_run_anomaly_detection,
+        provide_context=True,
+    )
 
-    download >> upload >> load_bronze >> validate_quality >> transform_silver >> build_gold
+    # ============================================================
+    # Pipeline Flow (Complete)
+    # ============================================================
+    # Download → Upload → Load Bronze → Validate → Silver → Gold → Anomaly Detection
+
+    download >> upload >> load_bronze >> validate_quality >> transform_silver >> build_gold >> detect_anomalies
