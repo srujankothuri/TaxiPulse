@@ -130,6 +130,19 @@ def task_transform_to_silver(**context):
     return result["status"]
 
 
+def task_build_gold_layer(**context):
+    """Task 6: Build Gold star schema and aggregations."""
+    from transformations.gold.build_star_schema import run_gold_pipeline
+    from loguru import logger
+
+    logger.info("🏆 Building Gold layer...")
+    results = run_gold_pipeline()
+
+    context["ti"].xcom_push(key="gold_results", value=results)
+    logger.info(f"✅ Gold layer complete: {sum(results.values()):,} total rows")
+    return results
+
+
 # ============================================================
 # DAG Definition
 # ============================================================
@@ -188,14 +201,20 @@ with DAG(
         provide_context=True,
     )
 
+    # Task 6: Gold Layer (Star Schema + Aggregations)
+    build_gold = PythonOperator(
+        task_id="build_gold_layer",
+        python_callable=task_build_gold_layer,
+        provide_context=True,
+    )
+
     # ============================================================
     # Pipeline Flow
     # ============================================================
-    # Download → Upload → Load Bronze → Validate → Silver
+    # Download → Upload → Load Bronze → Validate → Silver → Gold
     #
     # Future steps will add:
-    #   → Gold Star Schema
     #   → Anomaly Detection
     #   → Alerting
 
-    download >> upload >> load_bronze >> validate_quality >> transform_silver
+    download >> upload >> load_bronze >> validate_quality >> transform_silver >> build_gold
