@@ -109,6 +109,27 @@ def task_validate_data_quality(**context):
     return summary["overall_pass_rate"]
 
 
+def task_transform_to_silver(**context):
+    """Task 5: Transform validated data to Silver layer."""
+    from transformations.silver.clean_and_validate import run_silver_pipeline
+    from loguru import logger
+
+    logger.info("🔧 Running Silver transformation...")
+    result = run_silver_pipeline()
+
+    if result["status"] == "success":
+        logger.info(
+            f"✅ Silver complete: {result['silver_rows']:,} clean, "
+            f"{result['quarantine_rows']:,} quarantined"
+        )
+    elif result["status"] == "skipped":
+        logger.info(f"⏭️ Silver already loaded: {result['existing_rows']:,} rows")
+    else:
+        raise Exception("Silver transformation failed — no data")
+
+    return result["status"]
+
+
 # ============================================================
 # DAG Definition
 # ============================================================
@@ -160,15 +181,21 @@ with DAG(
         provide_context=True,
     )
 
+    # Task 5: Silver Layer Transformation
+    transform_silver = PythonOperator(
+        task_id="transform_to_silver",
+        python_callable=task_transform_to_silver,
+        provide_context=True,
+    )
+
     # ============================================================
     # Pipeline Flow
     # ============================================================
-    # Download → Upload to MinIO → Load into PostgreSQL → Validate Quality
+    # Download → Upload → Load Bronze → Validate → Silver
     #
     # Future steps will add:
-    #   → Silver Transformation
     #   → Gold Star Schema
     #   → Anomaly Detection
     #   → Alerting
 
-    download >> upload >> load_bronze >> validate_quality
+    download >> upload >> load_bronze >> validate_quality >> transform_silver
