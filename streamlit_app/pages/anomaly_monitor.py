@@ -1,17 +1,12 @@
-"""
-TaxiPulse — Anomaly Monitor Page
-Displays detected anomalies with filters and visualizations.
-"""
+"""TaxiPulse — Anomaly Monitor Page"""
 
 import streamlit as st
 import plotly.express as px
 import sys
 from pathlib import Path
 
-# Ensure db.py is importable regardless of how page is launched
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from db import run_query
+from db import get_anomaly_summary, get_anomaly_log, get_anomaly_zones
 
 
 def render():
@@ -19,172 +14,90 @@ def render():
     st.markdown("Real-time anomaly detection results from the TaxiPulse pipeline")
 
     # ---- Summary Metrics ----
-    summary = run_query("""
-        SELECT
-            COUNT(*) as total,
-            SUM(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) as critical,
-            SUM(CASE WHEN severity = 'high' THEN 1 ELSE 0 END) as high,
-            SUM(CASE WHEN severity = 'medium' THEN 1 ELSE 0 END) as medium,
-            SUM(CASE WHEN alert_sent THEN 1 ELSE 0 END) as alerted
-        FROM gold.anomaly_log
-    """)
+    summary = get_anomaly_summary()
 
     col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("Total Anomalies", f"{summary['total'][0]:,}")
-    col2.metric("🔴 Critical", f"{summary['critical'][0]:,}")
-    col3.metric("🟠 High", f"{summary['high'][0]:,}")
-    col4.metric("🟡 Medium", f"{summary['medium'][0]:,}")
-    col5.metric("📬 Alerts Sent", f"{summary['alerted'][0]:,}")
+    col1.metric("Total Anomalies", f"{summary['total']:,}")
+    col2.metric("🔴 Critical", f"{summary['critical']:,}")
+    col3.metric("🟠 High", f"{summary['high']:,}")
+    col4.metric("🟡 Medium", f"{summary['medium']:,}")
+    col5.metric("📬 Alerts Sent", f"{summary['alerted']:,}")
 
     # ---- Filters ----
     st.markdown("### 🔍 Filters")
     col1, col2 = st.columns(2)
-
     with col1:
         severity_filter = st.multiselect(
-            "Severity",
-            ["critical", "high", "medium"],
-            default=["critical", "high"],
-        )
-
+            "Severity", ["critical", "high", "medium"],
+            default=["critical", "high"])
     with col2:
         type_filter = st.multiselect(
             "Anomaly Type",
             ["fare_spike", "volume_spike", "daily_revenue_anomaly"],
-            default=["fare_spike", "volume_spike", "daily_revenue_anomaly"],
-        )
+            default=["fare_spike", "volume_spike", "daily_revenue_anomaly"])
 
-    # Build filter clause
-    sev_str = ",".join(f"'{s}'" for s in severity_filter)
-    type_str = ",".join(f"'{t}'" for t in type_filter)
+    # ---- Get filtered data ----
+    filtered = get_anomaly_log(severity_filter, type_filter)
 
-    # ---- Anomaly Distribution ----
+    if filtered.empty:
+        st.info("No anomalies match the selected filters.")
+        return
+
+    # ---- Distribution Charts ----
     st.markdown("### 📊 Anomaly Distribution")
-
     col1, col2 = st.columns(2)
 
     with col1:
-        by_type = run_query(f"""
-            SELECT anomaly_type, COUNT(*) as count
-            FROM gold.anomaly_log
-            WHERE severity IN ({sev_str}) AND anomaly_type IN ({type_str})
-            GROUP BY anomaly_type
-        """)
-
-        if not by_type.empty:
-            fig = px.pie(
-                by_type, values="count", names="anomaly_type",
-                title="By Anomaly Type",
-                color_discrete_sequence=["#e74c3c", "#f39c12", "#3498db"],
-            )
+        if "anomaly_type" in filtered.columns:
+            by_type = filtered["anomaly_type"].value_counts().reset_index()
+            by_type.columns = ["anomaly_type", "count"]
+            fig = px.pie(by_type, values="count", names="anomaly_type",
+                         title="By Anomaly Type",
+                         color_discrete_sequence=["#e74c3c", "#f39c12", "#3498db"])
             fig.update_layout(height=350)
             st.plotly_chart(fig, use_container_width=True)
 
     with col2:
-        by_severity = run_query(f"""
-            SELECT severity, COUNT(*) as count
-            FROM gold.anomaly_log
-            WHERE severity IN ({sev_str}) AND anomaly_type IN ({type_str})
-            GROUP BY severity
-        """)
-
-        if not by_severity.empty:
-            color_map = {
-                "critical": "#e74c3c",
-                "high": "#f39c12",
-                "medium": "#f1c40f",
-            }
-            fig = px.bar(
-                by_severity, x="severity", y="count",
-                title="By Severity",
-                color="severity",
-                color_discrete_map=color_map,
-            )
+        if "severity" in filtered.columns:
+            by_sev = filtered["severity"].value_counts().reset_index()
+            by_sev.columns = ["severity", "count"]
+            color_map = {"critical": "#e74c3c", "high": "#f39c12", "medium": "#f1c40f"}
+            fig = px.bar(by_sev, x="severity", y="count", title="By Severity",
+                         color="severity", color_discrete_map=color_map)
             fig.update_layout(height=350)
             st.plotly_chart(fig, use_container_width=True)
 
     # ---- Top Anomalous Zones ----
     st.markdown("### 📍 Most Anomalous Zones")
-
-    top_zones = run_query(f"""
-        SELECT a.zone_id,
-               COALESCE(d.zone_name, 'Zone ' || a.zone_id::text) as zone_name,
-               COALESCE(d.borough, 'Unknown') as borough,
-               COUNT(*) as anomaly_count,
-               AVG(a.z_score) as avg_z_score,
-               MAX(a.z_score) as max_z_score
-        FROM gold.anomaly_log a
-        LEFT JOIN gold.dim_pickup_location d
-            ON a.zone_id = d.pickup_location_id
-        WHERE a.zone_id IS NOT NULL
-          AND a.severity IN ({sev_str})
-          AND a.anomaly_type IN ({type_str})
-        GROUP BY a.zone_id, d.zone_name, d.borough
-        ORDER BY anomaly_count DESC
-        LIMIT 15
-    """)
+    top_zones = get_anomaly_zones(severity_filter, type_filter)
 
     if not top_zones.empty:
-        fig = px.bar(
-            top_zones, x="zone_name", y="anomaly_count",
-            color="avg_z_score",
-            hover_data=["borough", "max_z_score"],
-            title="Top 15 Zones by Anomaly Count",
-            labels={
-                "zone_name": "Zone",
-                "anomaly_count": "Anomaly Count",
-                "avg_z_score": "Avg Z-Score",
-            },
-            color_continuous_scale="Reds",
-        )
+        fig = px.bar(top_zones, x="zone_name", y="anomaly_count",
+                     color="avg_z_score",
+                     hover_data=["borough", "max_z_score"],
+                     title="Top 15 Zones by Anomaly Count",
+                     labels={"zone_name": "Zone", "anomaly_count": "Anomaly Count"},
+                     color_continuous_scale="Reds")
         fig.update_layout(height=400, xaxis_tickangle=-45)
         st.plotly_chart(fig, use_container_width=True)
 
     # ---- Z-Score Distribution ----
-    st.markdown("### 📈 Z-Score Distribution")
-
-    zscores = run_query(f"""
-        SELECT z_score, anomaly_type, severity
-        FROM gold.anomaly_log
-        WHERE severity IN ({sev_str}) AND anomaly_type IN ({type_str})
-    """)
-
-    if not zscores.empty:
-        fig = px.histogram(
-            zscores, x="z_score", color="anomaly_type",
-            title="Z-Score Distribution of Anomalies",
-            nbins=50,
-            labels={"z_score": "Z-Score", "anomaly_type": "Type"},
-            barmode="overlay",
-            opacity=0.7,
-        )
+    if "z_score" in filtered.columns:
+        st.markdown("### 📈 Z-Score Distribution")
+        fig = px.histogram(filtered, x="z_score", color="anomaly_type",
+                           title="Z-Score Distribution of Anomalies",
+                           nbins=50, barmode="overlay", opacity=0.7)
         fig.update_layout(height=350)
         st.plotly_chart(fig, use_container_width=True)
 
     # ---- Recent Anomalies Table ----
     st.markdown("### 📋 Recent Anomalies")
-
-    recent = run_query(f"""
-        SELECT detected_at, anomaly_type, severity,
-               zone_id, z_score, description, alert_sent
-        FROM gold.anomaly_log
-        WHERE severity IN ({sev_str}) AND anomaly_type IN ({type_str})
-        ORDER BY z_score DESC
-        LIMIT 50
-    """)
-
-    if not recent.empty:
-        st.dataframe(
-            recent,
-            use_container_width=True,
-            column_config={
-                "z_score": st.column_config.NumberColumn(format="%.1f"),
-                "alert_sent": st.column_config.CheckboxColumn("Alerted"),
-            },
-        )
-    else:
-        st.info("No anomalies match the selected filters.")
+    display_cols = [c for c in ["detected_at", "anomaly_type", "severity",
+                                "zone_id", "z_score", "description", "alert_sent"]
+                    if c in filtered.columns]
+    if display_cols:
+        show = filtered[display_cols].sort_values("z_score", ascending=False).head(50)
+        st.dataframe(show, use_container_width=True)
 
 
-# Auto-run when Streamlit launches this page directly
 render()

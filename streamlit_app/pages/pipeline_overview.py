@@ -1,77 +1,45 @@
-"""
-TaxiPulse — Pipeline Overview Page
-Shows high-level metrics, pipeline status, and architecture.
-"""
+"""TaxiPulse — Pipeline Overview Page"""
 
 import streamlit as st
 import sys
 from pathlib import Path
 
-# Ensure db.py is importable regardless of how page is launched
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from streamlit_app.db import run_query
+from db import (
+    get_bronze_count, get_silver_count, get_quarantine_count,
+    get_anomaly_count, get_fact_count, get_dim_datetime_count,
+    get_hourly_agg_count, get_daily_agg_count, get_freshness,
+)
 
 
 def render():
     st.title("📊 Pipeline Overview")
     st.markdown("High-level view of the TaxiPulse data pipeline")
 
-    # ---- Key Metrics Row ----
     st.markdown("### 📈 Key Metrics")
-
     col1, col2, col3, col4 = st.columns(4)
+    bronze = get_bronze_count()
+    silver = get_silver_count()
+    quarantine = get_quarantine_count()
+    anomalies = get_anomaly_count()
 
-    bronze_count = run_query(
-        "SELECT COUNT(*) as cnt FROM bronze.raw_yellow_trips"
-    )["cnt"][0]
+    col1.metric("🥉 Bronze Rows", f"{bronze:,}")
+    col2.metric("🥈 Silver Rows", f"{silver:,}")
+    col3.metric("🚫 Quarantined", f"{quarantine:,}")
+    col4.metric("🚨 Anomalies", f"{anomalies:,}")
 
-    silver_count = run_query(
-        "SELECT COUNT(*) as cnt FROM silver.clean_yellow_trips"
-    )["cnt"][0]
-
-    quarantine_count = run_query(
-        "SELECT COUNT(*) as cnt FROM silver.quarantined_yellow_trips"
-    )["cnt"][0]
-
-    anomaly_count = run_query(
-        "SELECT COUNT(*) as cnt FROM gold.anomaly_log"
-    )["cnt"][0]
-
-    col1.metric("🥉 Bronze Rows", f"{bronze_count:,}")
-    col2.metric("🥈 Silver Rows", f"{silver_count:,}")
-    col3.metric("🚫 Quarantined", f"{quarantine_count:,}")
-    col4.metric("🚨 Anomalies", f"{anomaly_count:,}")
-
-    # ---- Pass Rate ----
-    pass_rate = (silver_count / bronze_count * 100) if bronze_count > 0 else 0
     st.markdown("### ✅ Data Quality Pass Rate")
+    pass_rate = (silver / bronze * 100) if bronze > 0 else 0
     st.progress(pass_rate / 100)
     st.markdown(f"**{pass_rate:.1f}%** of records passed quality validation")
 
-    # ---- Gold Layer Stats ----
     st.markdown("### 🏆 Gold Layer")
     col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Fact Trips", f"{get_fact_count():,}")
+    col2.metric("Datetime Dims", f"{get_dim_datetime_count():,}")
+    col3.metric("Hourly Aggregations", f"{get_hourly_agg_count():,}")
+    col4.metric("Daily Summaries", f"{get_daily_agg_count():,}")
 
-    fact_count = run_query(
-        "SELECT COUNT(*) as cnt FROM gold.fact_trips"
-    )["cnt"][0]
-    dim_dt = run_query(
-        "SELECT COUNT(*) as cnt FROM gold.dim_datetime"
-    )["cnt"][0]
-    agg_hourly = run_query(
-        "SELECT COUNT(*) as cnt FROM gold.agg_hourly_zone_revenue"
-    )["cnt"][0]
-    agg_daily = run_query(
-        "SELECT COUNT(*) as cnt FROM gold.agg_daily_summary"
-    )["cnt"][0]
-
-    col1.metric("Fact Trips", f"{fact_count:,}")
-    col2.metric("Datetime Dims", f"{dim_dt:,}")
-    col3.metric("Hourly Aggregations", f"{agg_hourly:,}")
-    col4.metric("Daily Summaries", f"{agg_daily:,}")
-
-    # ---- Pipeline Architecture ----
     st.markdown("### 🏗️ Pipeline Architecture")
     st.code("""
     NYC TLC Data ──┬── Batch Path (Airflow) ──┐
@@ -87,21 +55,13 @@ def render():
                                                       + Alerts
     """, language=None)
 
-    # ---- Data Freshness ----
     st.markdown("### 🕐 Data Freshness")
-    freshness = run_query("""
-        SELECT
-            MIN(pickup_datetime) as earliest,
-            MAX(pickup_datetime) as latest,
-            COUNT(DISTINCT pickup_datetime::date) as total_days
-        FROM silver.clean_yellow_trips
-    """)
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Earliest Record", str(freshness["earliest"][0])[:10])
-    col2.metric("Latest Record", str(freshness["latest"][0])[:10])
-    col3.metric("Days Covered", f"{freshness['total_days'][0]}")
+    freshness = get_freshness()
+    if not freshness.empty:
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Earliest Record", str(freshness["earliest"].iloc[0])[:10])
+        col2.metric("Latest Record", str(freshness["latest"].iloc[0])[:10])
+        col3.metric("Days Covered", f"{freshness['total_days'].iloc[0]}")
 
 
-# Auto-run when Streamlit launches this page directly
 render()

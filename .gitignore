@@ -40,6 +40,7 @@ data/
 *.csv
 *.xlsx
 !config/*.csv
+!streamlit_app/data/*.csv
 
 # --- Terraform ---
 terraform/.terraform/
