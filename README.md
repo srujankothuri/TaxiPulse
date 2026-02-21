@@ -247,4 +247,4 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 **Venkata Srujan Kothuri**
 - GitHub: [@srujankothuri](https://github.com/srujankothuri)
-- LinkedIn: [Connect with me](https://linkedin.com/in/your-linkedin)
+- LinkedIn: [Connect with me](https://linkedin.com/in/srujankothuri)
