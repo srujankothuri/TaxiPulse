@@ -8,6 +8,7 @@ An end-to-end data engineering platform processing **9.5M+ NYC taxi records** th
 ![Kafka](https://img.shields.io/badge/Streaming-Kafka-231F20?logo=apache-kafka)
 ![PostgreSQL](https://img.shields.io/badge/Warehouse-PostgreSQL-4169E1?logo=postgresql)
 ![MinIO](https://img.shields.io/badge/Storage-MinIO-C72E49?logo=minio)
+![CI](https://github.com/srujankothuri/TaxiPulse/actions/workflows/test.yml/badge.svg)
 
 ---
 
