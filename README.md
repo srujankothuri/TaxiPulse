@@ -47,6 +47,10 @@ An end-to-end data engineering platform processing **9.5M+ NYC taxi records** th
 ### 🪣 MinIO Data Lake
 ![MinIO Bronze Layer](docs/images/minio_bronze.png)
 
+### Slack Alerts
+![Slack](docs/images/slack_alert.png)
+
+
 ---
 
 ## 🏗️ Architecture
